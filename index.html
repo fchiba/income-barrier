@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>年収と手取り額の比較グラフ</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        h2 {
+            text-align: center;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .disclaimer {
+            font-size: 12px;
+            color: #666;
+            background-color: #f9f9f9;
+            padding: 10px;
+            border-left: 3px solid #ccc;
+            margin-bottom: 20px;
+        }
+
+        .feedback {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .form-group label {
+            font-weight: bold;
+            margin-right: 10px;
+            white-space: nowrap;
+        }
+
+        .form-group div {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .form-group input[type="radio"] {
+            margin-right: 3px;
+        }
+
+        .form-group input[type="number"] {
+            padding: 3px;
+            width: 50px;
+            font-size: 14px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 60vh;
+            width: 100%;
+            margin-top: 20px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script
+        src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0/dist/chartjs-plugin-annotation.min.js"></script>
+</head>
+
+<body>
+    <h2>パート・アルバイト x万円の壁シミュレータ</h2>
+    <div class="disclaimer">
+        本シミュレーションは制度の理解を目的とした参考情報を提供するものであり、厳密な内容ではありません。
+        本シミュレーションの結果に基づいて発生するいかなる不具合についても、当方は責任を負いかねますのでご了承ください。
+    </div>
+    <form>
+        <div class="form-group">
+            <label>扶養者との関係:</label>
+            <div>
+                <label><input type="radio" name="dependent" value="spout" checked> 配偶者</label>
+                <label><input type="radio" name="dependent" value="other"> 配偶者以外（親など）</label>
+                <label><input type="radio" name="dependent" value="none"> 扶養されていない</label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>扶養者の年収（額面）:</label>
+            <div>
+                <label><input type="radio" name="providerIncomeTaxRate" value="0.05" checked> 500万円（所得税率5%）</label>
+                <label><input type="radio" name="providerIncomeTaxRate" value="0.10"> 800万円（所得税率10%）</label>
+                <label><input type="radio" name="providerIncomeTaxRate" value="0.20"> 1000万円（所得税率20%）</label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>学生:</label>
+            <div>
+                <label><input type="radio" name="student" value="yes"> はい</label>
+                <label><input type="radio" name="student" value="no" checked> いいえ</label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>勤務先の規模:</label>
+            <div>
+                <label><input type="radio" name="companySize" value="small"> 50人以下</label>
+                <label><input type="radio" name="companySize" value="big" checked> 51人以上</label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>時給:</label>
+            <input type="number" id="hourlyIncome" name="hourlyIncome" value="1350">円
+        </div>
+
+        <div class="form-group">
+            <label>年齢:</label>
+            <div>
+                <label><input type="radio" name="age" value="under20"> 20歳未満</label>
+                <label><input type="radio" name="age" value="under40" checked> 20歳以上40歳未満</label>
+                <label><input type="radio" name="age" value="over40"> 40歳以上 64歳以下</label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>所得控除(いわゆる103万の壁):</label>
+            <div>
+                <label><input type="radio" name="basicReductionDiff" value="0" checked> 現行: 48万 (給与所得 103万)</label>
+                <label><input type="radio" name="basicReductionDiff" value="750000"> 123万 (給与所得 178万)</label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>厚生年金適用条件(いわゆる106万円の壁):</label>
+            <div>
+                <label><input type="radio" name="mandatorySocialInsurance" value="current" checked> 現行:
+                    月88000円以上</label>
+                <label><input type="radio" name="mandatorySocialInsurance" value="none"> 撤廃</label>
+            </div>
+        </div>
+    </form>
+
+    <div class="chart-container" style="position: relative; height:60vh; width:95vw">
+        <canvas id="incomeChart"></canvas>
+    </div>
+
+    <div class="feedback">
+        フィードバックはこちらまで:
+        <a href="https://twitter.com/fchiba" target="_blank">Twitter @fchiba</a> /
+        <a href="https://github.com/fchiba/income-barrier" target="_blank">GitHub</a>
+    </div>
+
+    <script>
+        const isDependent = () => {
+            const checked = document.querySelector('input[name="dependent"]:checked');
+            return checked && checked.value !== 'none';
+        }
+
+        const isSpoutDependent = () => {
+            const checked = document.querySelector('input[name="dependent"]:checked');
+            return checked && checked.value === 'spout';
+        }
+
+        const isOtherDependent = () => {
+            const checked = document.querySelector('input[name="dependent"]:checked');
+            return checked && checked.value === 'other';
+        }
+
+        const isStudent = () => {
+            const checked = document.querySelector('input[name="student"]:checked');
+            return checked && checked.value === 'yes';
+        }
+
+        const getProviderIncomeTaxRate = () => {
+            const checked = document.querySelector('input[name="providerIncomeTaxRate"]:checked');
+            return Number(checked.value);
+        }
+
+        const shouldApplySpoutReduction = () => {
+            const checked = document.querySelector('input[name="dependent"]:checked');
+            return checked && checked.value === 'homemaker';
+        }
+
+        const shouldApplySpecialBusinessUnit = () => {
+            const checked = document.querySelector('input[name="companySize"]:checked');
+            return checked && checked.value === 'big';
+        }
+
+        const getHourlyIncome = () => {
+            return Number(document.getElementById('hourlyIncome').value);
+        }
+
+        const shouldPayNationalPension = () => {
+            const checked = document.querySelector('input[name="age"]:checked');
+            return checked && checked.value !== 'under20';
+        }
+
+        const shouldApplyNursingCareInsurance = () => {
+            const checked = document.querySelector('input[name="age"]:checked');
+            return checked && checked.value === 'over40';
+        }
+
+        const getBasicReductionDiff = () => {
+            const checked = document.querySelector('input[name="basicReductionDiff"]:checked');
+            return Number(checked.value);
+        }
+
+        const shouldApplyMandatoryIncomeForSocialInsurance = () => {
+            const checked = document.querySelector('input[name="mandatorySocialInsurance"]:checked');
+            return checked && checked.value === 'current';
+        }
+
+
+        const salaryReduction = (income) => {
+            // https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1410.htm
+            if (income <= 1625000) {
+                return 550000;
+            } else if (income <= 1800000) {
+                return income * 0.40 - 100000;
+            } else if (income <= 3600000) {
+                return income * 0.30 + 80000;
+            } else if (income <= 6600000) {
+                return income * 0.20 + 440000;
+            } else if (income <= 8500000) {
+                return income * 0.10 + 1100000;
+            } else {
+                return 1950000;
+            }
+        };
+
+        const incomeTaxReduction = (income) => {
+            // https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1199.htm
+            if (income <= 24000000) {
+                return 480000 + getBasicReductionDiff(); // 基礎控除が増える
+            } else if (income <= 24500000) { // TODO 基礎控除が増えた場合のこのへんのハンドリング（グラフ範囲外）
+                return 320000;
+            } else if (income <= 25000000) {
+                return 160000;
+            } else {
+                return 0;
+            }
+        }
+
+        // for (let i = 1; i < 20; i++) {
+        //     const salary = i * 1000000;
+        //     console.log(salary, salaryReduction(salary), incomeTaxReduction(salary), salary - salaryReduction(salary) - incomeTaxReduction(salary) - 1010000);
+        // }
+
+        const residentTaxReduction = (income) => {
+            if (income <= 24000000) {
+                return 430000 + getBasicReductionDiff(); // 住民税の基礎控除も増えると仮定
+            } else if (income <= 24500000) {  // TODO 基礎控除が増えた場合のこのへんのハンドリング（グラフ範囲外）
+                return 290000;
+            } else if (income <= 25000000) {
+                return 150000;
+            } else {
+                return 0;
+            }
+        }
+
+        const calcIncomeTax = (income) => {
+            // https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2260.htm
+            // 給与所得
+            const salaryIncome = income - salaryReduction(income);
+
+            // 合計所得（給与所得のみ）
+            const totalIncome = salaryIncome;
+
+            const studentDeduction = isStudent() ? 270000 : 0;
+
+            // 合計課税所得
+            const totalTaxIncome = Math.floor((totalIncome - incomeTaxReduction(income) - studentDeduction) / 1000) * 1000;
+
+            let tax;
+            if (totalTaxIncome < 0) {
+                tax = 0;
+            } else if (totalTaxIncome <= 1949000) {
+                tax = totalTaxIncome * 0.05;
+            } else if (totalTaxIncome <= 3299000) {
+                tax = totalTaxIncome * 0.10 - 97500;
+            } else if (totalTaxIncome <= 6949000) {
+                tax = totalTaxIncome * 0.20 - 427500;
+            } else if (totalTaxIncome <= 8999000) {
+                tax = totalTaxIncome * 0.23 - 636000;
+            } else if (totalTaxIncome <= 17999000) {
+                tax = totalTaxIncome * 0.33 - 1536000;
+            } else if (totalTaxIncome <= 39999000) {
+                tax = totalTaxIncome * 0.40 - 2796000;
+            } else {
+                tax = totalTaxIncome * 0.45 - 4796000;
+            }
+            return tax * 1.021;
+        }
+
+        const calcResidentTax = (income) => {
+            // 東京都渋谷区
+            // https://www.city.shibuya.tokyo.jp/kurashi/juminzei/kazei/juminzei_fuka.html
+
+            // 給与所得
+            const salaryIncome = income - salaryReduction(income);
+
+            // 合計所得（給与所得のみ）
+            const totalIncome = salaryIncome;
+
+            const studentDeduction = isStudent() ? 260000 : 0;
+
+            // 合計課税所得
+            const totalTaxIncome = Math.floor((totalIncome - residentTaxReduction(income) - studentDeduction) / 1000) * 1000;
+
+            // 調整控除（なんだこれは…）
+            let adjustmentReduction;
+            let humanReduction = 50000;
+            if (salaryIncome <= 2000000) {
+                adjustmentReduction = Math.min(humanReduction, totalTaxIncome) * 0.05;
+            } else if (totalTaxIncome <= 25000000) {
+                adjustmentReduction = Math.min((humanReduction - (salaryIncome - 2000000)) * 0.05, 2500);
+            } else {
+                adjustmentReduction = 0;
+            }
+
+            let residentTax;
+            if (totalTaxIncome <= 0) {
+                residentTax = 0;
+            } else {
+                residentTax = totalTaxIncome * 0.10 + 5000 - adjustmentReduction;
+            }
+            // console.log([income, totalIncome, totalTaxIncome, adjustmentReduction, residentTax]);
+            return residentTax;
+        };
+
+        const calcEmploymentInsurance = (income) => {
+            // 週20時間
+            if (income > 20 * 365 / 7 * getHourlyIncome() && !isStudent()) {
+                return income * 0.006
+            } else {
+                return 0;
+            }
+        }
+
+        const standardIncome = (monthlyIncome) => {
+            const table = [58000, 68000, 78000, 88000, 98000, 104000, 110000, 118000, 126000, 134000, 142000, 150000, 160000, 170000, 180000, 190000, 200000];
+            for (let i = 0; i < table.length - 1; i++) {
+                if (monthlyIncome < (table[i] + table[i + 1]) / 2) {
+                    return table[i];
+                }
+            }
+            throw new Error("18等級以上は未実装");
+        }
+
+        const mandatoryCompanySocialInsurance = (income) => {
+            if (isStudent()) return false;
+
+            const hourlyIncome = getHourlyIncome();
+            const hourPerWeek = income / hourlyIncome / (365 / 7);
+
+            if (shouldApplySpecialBusinessUnit()) {
+                // 特定適用事業所
+                return hourPerWeek >= 20 && income >= (shouldApplyMandatoryIncomeForSocialInsurance() ? 88000 * 12 : 0);
+            } else {
+                return hourPerWeek >= 30;
+            }
+        }
+
+        const calcPension = (income) => {
+            if (mandatoryCompanySocialInsurance(income)) {
+                // 厚生年金
+                // https://www.nenkin.go.jp/service/kounen/hokenryo/ryogaku/ryogakuhyo/index.html
+                return standardIncome(income / 12) * 0.183 / 2 * 12;
+            } else if (shouldPayNationalPension() && (!isSpoutDependent() || (isSpoutDependent() && income >= 1300000))) {
+                // 国民年金
+                // https://www.nenkin.go.jp/service/kokunen/hokenryo/hokenryo.html#cms01
+                return 16980 * 12;
+            } else {
+                return 0;
+            }
+        }
+
+        const calcHealthInsurance = (income) => {
+            if (mandatoryCompanySocialInsurance(income)) {
+                // 協会けんぽを仮定
+                return standardIncome(income / 12) * 0.0998 / 2 * 12;
+            } else if (!isDependent() || income >= 1300000) {
+                // 国民健康保険（渋谷区）
+                // https://www.city.shibuya.tokyo.jp/kurashi/kokuho/kenkohokenryo/hokenryo_26.html
+
+                // 合計所得（給与所得のみ）
+                const totalIncome = income - salaryReduction(income);
+                // 合計課税所得
+                // > 所得割算定基礎額は、令和5年の年間収入から必要経費（給与所得控除、公的年金控除を含む）を差し引いた所得金額から基礎控除（43万円）した金額です。
+                // TODO 基礎控除いじるとここも大きく減る。流石に保険料減りすぎるので調整入るのではないか? 
+                const totalTaxIncome = Math.floor((totalIncome - residentTaxReduction(income)) / 1000) * 1000;
+
+                if (shouldApplyNursingCareInsurance()) {
+                    // 医療 + 介護保険
+                    return 49100 + 16500 + totalTaxIncome * (0.0869 + 0.0236);
+                } else {
+                    // 医療
+                    return 49100 + totalTaxIncome * 0.0869;
+                }
+            } else {
+                return 0;
+            }
+        }
+
+        const calcSpoutDeduction = (totalIncome) => {
+            if (totalIncome < 480000) {
+                return 380000;
+            } else if (totalIncome < 950000) {
+                return 380000;
+            } else if (totalIncome < 1000000) {
+                return 360000;
+            } else if (totalIncome < 1050000) {
+                return 310000;
+            } else if (totalIncome < 1100000) {
+                return 260000;
+            } else if (totalIncome < 1150000) {
+                return 210000;
+            } else if (totalIncome < 1200000) {
+                return 160000;
+            } else if (totalIncome < 1250000) {
+                return 110000;
+            } else if (totalIncome < 130000) {
+                return 60000;
+            } else if (totalIncome < 1330000) {
+                return 30000;
+            } else {
+                return 0;
+            }
+        }
+
+        const calcDependentDeductionDecrease = (income) => {
+            if (!isDependent()) return 0;
+
+            const providerIncomeTaxRate = getProviderIncomeTaxRate() + 0.10; // 所得税 + 住民税。本当は、所得税と住民税でちょっと違いそうだけど計算めんどうなので許して
+
+            if (isSpoutDependent()) {
+                // 配偶者控除 / 配偶者特別控除 の減少分
+
+                // 合計所得（給与所得のみ）
+                const totalIncome = income - salaryReduction(income) + getBasicReductionDiff(); // 基礎控除増やしたら扶養の条件も変わると仮定
+
+                // 配偶者控除 / 配偶者特別控除
+                const spoutReduction = calcSpoutDeduction(totalIncome);
+
+                // 満額適用されてたのが減る
+                return providerIncomeTaxRate * (380000 - spoutReduction);
+            } else {
+                if (income > 1030000 + getBasicReductionDiff()) { // 基礎控除増やしたら扶養の条件も変わると仮定
+                    // 一般の扶養対象親族が減る
+                    return providerIncomeTaxRate * 380000;
+                } else {
+                    return 0;
+                }
+            }
+        }
+
+        const minimumIncome = 90; // 万円
+        const maximumIncome = 200; // 万円
+        const incomeLabels = Array.from({ length: maximumIncome - minimumIncome + 1 }, (_, i) => minimumIncome + i);
+
+        const deductions = [
+            { label: '所得税', calculation: calcIncomeTax, color: 'rgba(255, 99, 132, 0.3)' },
+            { label: '住民税', calculation: calcResidentTax, color: 'rgba(54, 162, 235, 0.3)' },
+            { label: '雇用保険料', calculation: calcEmploymentInsurance, color: 'rgba(255, 206, 86, 0.3)' },
+            { label: '年金保険料', calculation: calcPension, color: 'rgba(75, 192, 192, 0.3)' },
+            { label: '健康保険料', calculation: calcHealthInsurance, color: 'rgba(153, 102, 255, 0.3)' },
+            { label: '扶養者の控除減少分', calculation: calcDependentDeductionDecrease, color: 'rgba(124, 42, 42, 0.3)' },
+        ];
+
+        const generateDatasets = () => {
+            for (let i = 0; i < deductions.length; i++) {
+                const deduction = deductions[i];
+                deduction.values = incomeLabels.map(income => deduction.calculation(income * 10000) / 10000);
+            }
+            const netIncomeData = incomeLabels.map((income, i) => income - deductions.reduce((acc, reduction) => acc + reduction.values[i], 0));
+
+            const datasets = [
+                {
+                    label: '手取り',
+                    data: netIncomeData,
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 3,
+                    fill: 'origin',
+                    pointRadius: 0
+                }
+            ];
+            for (let i = 0; i < deductions.length; i++) {
+                const deduction = deductions[i];
+                datasets[i + 1] = {
+                    label: deduction.label,
+                    data: incomeLabels.map((_, j) => deduction.values[j]),
+                    borderColor: 'rgba(0, 0, 0, 0.2)',
+                    borderWidth: 1,
+                    backgroundColor: deduction.color,
+                    fill: '-1',
+                    pointRadius: 0
+                };
+            }
+
+            return datasets;
+        };
+
+        const generateAnnotations = (datasets) => {
+            const netIncomeData = datasets[0].data;
+            const annotations = [];
+
+            const commonStyle = {
+                type: 'line',
+                scaleID: 'x',
+            }
+            const slopeStyle = {
+                ...commonStyle,
+                borderColor: 'rgba(255,0,0, 0.5)',
+                borderWidth: 1,
+            }
+            const wallStyle = {
+                ...commonStyle,
+                borderColor: 'rgb(255,0,0)',
+                borderWidth: 2,
+            }
+            let idx = 0;
+
+            // 100万（住民税)
+            idx = 100 - minimumIncome + getBasicReductionDiff() / 10000;
+            annotations.push({
+                ...(netIncomeData[idx] > netIncomeData[idx + 1] ? wallStyle : slopeStyle),
+                label: {
+                    content: '住民税開始',
+                    position: 'start',
+                    display: true,
+                    callout: {
+
+                        display: true,
+                    },
+                },
+                value: idx,
+            })
+
+            // 103万 (扶養控除外れる、学生以外 所得税開始)
+            idx = 103 - minimumIncome + getBasicReductionDiff() / 10000;
+            annotations.push({
+                ...(netIncomeData[idx] > netIncomeData[idx + 1] ? wallStyle : slopeStyle),
+                label: {
+                    content: [!isStudent() && '所得税開始', isOtherDependent() && '所得税扶養外'].filter(Boolean),
+                    position: 'start',
+                    yAdjust: 30,
+                    display: true
+                },
+                display: !isStudent() || isOtherDependent(),
+                value: idx,
+            })
+
+
+            // 106万 (社保年収)
+            idx = 106 - minimumIncome;
+            annotations.push({
+                ...(netIncomeData[idx - 1] > netIncomeData[idx] ? wallStyle : slopeStyle),
+                label: {
+                    content: '社会保険(年収条件)',
+                    position: 'start',
+                    display: true
+                },
+                display: shouldApplyMandatoryIncomeForSocialInsurance() && !isStudent(),
+                value: idx,
+            })
+
+            // 130万 （社保扶養, 学生所得税開始)
+            idx = 130 - minimumIncome;
+            annotations.push({
+                ...((netIncomeData[idx] > netIncomeData[idx + 1] || netIncomeData[idx - 1] > netIncomeData[idx]) ? wallStyle : slopeStyle),
+                label: {
+                    content: [isDependent() && '社会保険扶養外', isStudent() && getBasicReductionDiff() === 0 && '所得税開始'].filter(Boolean),
+                    position: 'start',
+                    display: true
+                },
+                display: isDependent() || (isStudent() && getBasicReductionDiff() === 0),
+                value: idx,
+            })
+
+            // TODO: 学生所得税（基礎＋給与控除178万円の場合 → 205万でグラフ外）
+
+            // 20 (雇用保険・社保特定)
+            const twentyHourPerWeeek = (20 * 365 / 7 * getHourlyIncome() / 10000) | 0;
+            idx = twentyHourPerWeeek - minimumIncome;
+            annotations.push({
+                ...(netIncomeData[idx] > netIncomeData[idx + 1] ? wallStyle : slopeStyle),
+                label: {
+                    content: ['雇用保険(20時間)', shouldApplySpecialBusinessUnit() && '社会保険(20時間)'].filter(Boolean),
+                    position: 'start',
+                    display: true
+                },
+                display: !isStudent(),
+                value: idx,
+            })
+
+            // 30時間 (社保非特定)
+            const thirtyHourPerWeek = (30 * 365 / 7 * getHourlyIncome() / 10000) | 0;
+            idx = thirtyHourPerWeek - minimumIncome;
+            annotations.push({
+                ...(netIncomeData[idx] > netIncomeData[idx + 1] ? wallStyle : slopeStyle),
+                label: {
+                    content: ['社会保険(30時間)'],
+                    position: 'start',
+                    display: true
+                },
+                display: !isStudent() && !shouldApplySpecialBusinessUnit(),
+                value: idx,
+            })
+
+            // 150万 
+            idx = 150 - minimumIncome;
+            annotations.push({
+                ...((netIncomeData[idx] > netIncomeData[idx + 1] || netIncomeData[idx - 1] > netIncomeData[idx]) ? wallStyle : slopeStyle),
+                label: {
+                    content: ['配偶者控除', '減少開始'],
+                    position: 'start',
+                    display: true
+                },
+                display: isSpoutDependent(),
+                value: idx,
+            })
+            return annotations;
+        }
+
+        const ctx = document.getElementById('incomeChart').getContext('2d');
+
+        const datasets = generateDatasets();
+        const annotations = generateAnnotations(datasets);
+
+        const incomeChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: incomeLabels,
+                datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: '額面（万円）'
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: '金額（万円）'
+                        },
+                        min: minimumIncome - 30, // 条件によっては下回る場合もあるのでちょっと余分に
+                        max: maximumIncome,
+                        stacked: true
+                    }
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                plugins: {
+                    legend: {
+                        onClick: () => { } // 凡例クリック無効化
+                    },
+                    tooltip: {
+                        enabled: true,
+                        callbacks: {
+                            title: (item) => `額面: ${item[0].label} 万円`,
+                            label: (item) => `${item.dataset.label}: ${item.raw.toFixed(2)} 万円`,
+                        },
+                    },
+                    annotation: {
+                        annotations
+                    }
+                },
+            }
+        });
+
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('change', (e) => {
+                if (e.target.name === 'dependent') {
+                    const disabled = e.target.value === 'none';
+                    document.querySelectorAll('input[name="providerIncomeTaxRate"]').forEach(value => value.disabled = disabled);
+                }
+
+
+                const newDatasets = generateDatasets();
+                for (let i = 0; i < newDatasets.length; i++) {
+                    incomeChart.data.datasets[i].data = newDatasets[i].data;
+                }
+                incomeChart.options.plugins.annotation.annotations = generateAnnotations(newDatasets);
+                incomeChart.update();
+            });
+        });
+    </script>
+</body>
+
+</html>
