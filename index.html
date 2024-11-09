@@ -195,7 +195,7 @@
     <div class="feedback">
         フィードバックはこちらまで:
         <a href="https://twitter.com/fchiba" target="_blank">Twitter @fchiba</a> /
-        <a href="https://bsky.app/profile/fchiba.bsky.social" target="_blank">Bluesky @fchiba.bsky.social</a> / 
+        <a href="https://bsky.app/profile/fchiba.bsky.social" target="_blank">Bluesky @fchiba.bsky.social</a> /
         <a href="https://github.com/fchiba/income-barrier" target="_blank">GitHub</a>
     </div>
 
@@ -315,7 +315,7 @@
             // 合計所得（給与所得のみ）
             const totalIncome = salaryIncome;
 
-            const studentDeduction = isStudent() ? 270000 : 0;
+            const studentDeduction = isStudent() && totalIncome <= 750000 ? 270000 : 0;
 
             // 合計課税所得
             const totalTaxIncome = Math.floor((totalIncome - incomeTaxReduction(income) - studentDeduction) / 1000) * 1000;
@@ -351,7 +351,7 @@
             // 合計所得（給与所得のみ）
             const totalIncome = salaryIncome;
 
-            const studentDeduction = isStudent() ? 260000 : 0;
+            const studentDeduction = isStudent() && totalIncome <= 750000 ? 260000 : 0;
 
             // 合計課税所得
             const totalTaxIncome = Math.floor((totalIncome - residentTaxReduction(income) - studentDeduction) / 1000) * 1000;
