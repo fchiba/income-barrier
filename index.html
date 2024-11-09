@@ -69,6 +69,19 @@
             width: 100%;
             margin-top: 20px;
         }
+
+        .assumptions {
+            font-size: 10px;
+            color: #888;
+            margin-top: 15px;
+            margin-bottom: 15px;
+            line-height: 1.4;
+        }
+
+        .assumptions ul {
+            padding-left: 20px;
+            margin: 0;
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script
@@ -159,6 +172,24 @@
 
     <div class="chart-container" style="position: relative; height:60vh; width:95vw">
         <canvas id="incomeChart"></canvas>
+    </div>
+
+    <div class="assumptions">
+        ※ 本シミュレーションの計算には以下の仮定が含まれています
+        <ul>
+            <li>2024/11時点の情報を元にしています</li>
+            <li>収入は給与所得だけ、控除は基礎控除・（特定）扶養控除・配偶者（特別）控除・勤労学生控除のみを考慮にいれています</li>
+            <li>扶養者の年収と税率の関係は、一般扶養親族と特定扶養親族がそれぞれ一人いる場合の値です(<a
+                    href="https://www.cao.go.jp/zei-cho/gijiroku/zeicho/2022/4zen17kai1-3.pdf">参考</a>)。計算では限界税率のみを用いています。
+            </li>
+            <li><a href="https://www.city.shibuya.tokyo.jp/kurashi/juminzei/kazei/juminzei_fuka.html">住民税</a>と<a
+                    href="https://www.city.shibuya.tokyo.jp/kurashi/kokuho/kenkohokenryo/hokenryo_26.html">国民健康保険</a>の金額には東京都渋谷区のものを用いています
+            </li>
+            <li>健康保険は協会けんぽの金額を用いています</li>
+            <li>所得控除を123万（給与所得178万）へ変更した際には、同じ金額だけ住民税の基礎控除、及び扶養控除の判定条件となる金額を増加させています。国民健康保険の所得割額が減りすぎる気がしますが、そこはそのままにしています。
+            </li>
+            <li>「学生」が「はい」の場合は、特定扶養親族、「いいえ」の場合は一般扶養親族として、控除減少分を計算しています</li>
+        </ul>
     </div>
 
     <div class="feedback">
@@ -405,7 +436,7 @@
                 // 合計課税所得
                 // > 所得割算定基礎額は、令和5年の年間収入から必要経費（給与所得控除、公的年金控除を含む）を差し引いた所得金額から基礎控除（43万円）した金額です。
                 // TODO 基礎控除いじるとここも大きく減る。流石に保険料減りすぎるので調整入るのではないか? 
-                const totalTaxIncome = Math.floor((totalIncome - residentTaxReduction(income)) / 1000) * 1000;
+                const totalTaxIncome = Math.max(Math.floor((totalIncome - residentTaxReduction(income)) / 1000) * 1000, 0);
 
                 if (shouldApplyNursingCareInsurance()) {
                     // 医療 + 介護保険
@@ -464,7 +495,7 @@
             } else {
                 if (income > 1030000 + getBasicReductionDiff()) { // 基礎控除増やしたら扶養の条件も変わると仮定
                     // 一般の扶養対象親族が減る
-                    return providerIncomeTaxRate * 380000;
+                    return providerIncomeTaxRate * (isStudent() ? 630000 : 380000);
                 } else {
                     return 0;
                 }
@@ -599,7 +630,7 @@
             annotations.push({
                 ...(netIncomeData[idx] > netIncomeData[idx + 1] ? wallStyle : slopeStyle),
                 label: {
-                    content: ['雇用保険(20時間)', shouldApplySpecialBusinessUnit() && '社会保険(20時間)'].filter(Boolean),
+                    content: ['雇用保険(週20時間)', shouldApplySpecialBusinessUnit() && '社会保険(週20時間)'].filter(Boolean),
                     position: 'start',
                     yAdjust: 30,
                     display: true
@@ -614,7 +645,7 @@
             annotations.push({
                 ...(netIncomeData[idx] > netIncomeData[idx + 1] ? wallStyle : slopeStyle),
                 label: {
-                    content: ['社会保険(30時間)'],
+                    content: ['社会保険(週30時間)'],
                     position: 'start',
                     yAdjust: 30,
                     display: true
