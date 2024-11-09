@@ -454,7 +454,7 @@
                 // 配偶者控除 / 配偶者特別控除 の減少分
 
                 // 合計所得（給与所得のみ）
-                const totalIncome = income - salaryReduction(income) + getBasicReductionDiff(); // 基礎控除増やしたら扶養の条件も変わると仮定
+                const totalIncome = income - salaryReduction(income) - getBasicReductionDiff(); // 基礎控除増やしたら扶養の条件も変わると仮定
 
                 // 配偶者控除 / 配偶者特別控除
                 const spoutReduction = calcSpoutDeduction(totalIncome);
