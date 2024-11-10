@@ -114,11 +114,14 @@
         </div>
 
         <div class="form-group">
-            <label>扶養者の年収（額面）:</label>
+            <label>扶養者の所得税率:</label>
             <div>
-                <label><input type="radio" name="providerIncomeTaxRate" value="0.05" checked> 500万円（所得税率5%）</label>
-                <label><input type="radio" name="providerIncomeTaxRate" value="0.10"> 800万円（所得税率10%）</label>
-                <label><input type="radio" name="providerIncomeTaxRate" value="0.20"> 1000万円（所得税率20%）</label>
+                <label><input type="radio" name="providerIncomeTaxRate" value="0.05" checked> 5%
+                    （課税所得195万未満、額面で年収約600万円以下）</label>
+                <label><input type="radio" name="providerIncomeTaxRate" value="0.10"> 10%
+                    （課税所得330万未満、額面で年収約800万円以下）</label>
+                <label><input type="radio" name="providerIncomeTaxRate" value="0.20"> 20%
+                    （課税所得695万未満、額面で年収約1200万円以下）</label>
             </div>
         </div>
 
@@ -178,17 +181,18 @@
         ※ 本シミュレーションの計算には以下の仮定が含まれています
         <ul>
             <li>2024/11時点の情報を元にしています</li>
-            <li>収入は給与所得だけ、控除は基礎控除・（特定）扶養控除・配偶者（特別）控除・勤労学生控除のみを考慮にいれています</li>
-            <li>扶養者の年収と税率の関係は、一般扶養親族と特定扶養親族がそれぞれ一人いる場合の値です(<a
-                    href="https://www.cao.go.jp/zei-cho/gijiroku/zeicho/2022/4zen17kai1-3.pdf">参考</a>)。計算では限界税率のみを用いています。
+            <li>収入は給与所得（1箇所）だけあるとし、控除は基礎控除・（特定）扶養控除・配偶者（特別）控除・勤労学生控除のみを考慮にいれています</li>
+            <li>扶養者の所得税率における年収は、一般扶養親族と特定扶養親族がそれぞれ一人いる場合の値です(<a
+                    href="https://www.cao.go.jp/zei-cho/gijiroku/zeicho/2022/4zen17kai1-3.pdf">参考</a>)。計算では限界税率のみを用いており、非扶養者の年収の変化により控除が変わっても税率に変化がないと仮定しています。
             </li>
+            <li>「学生」が「はい」の場合は、特定扶養親族、「いいえ」の場合は一般扶養親族として、控除減少分を計算しています</li>
             <li><a href="https://www.city.shibuya.tokyo.jp/kurashi/juminzei/kazei/juminzei_fuka.html">住民税</a>と<a
                     href="https://www.city.shibuya.tokyo.jp/kurashi/kokuho/kenkohokenryo/hokenryo_26.html">国民健康保険</a>の金額には東京都渋谷区のものを用いています
             </li>
             <li>健康保険は協会けんぽの金額を用いています</li>
             <li>所得控除を123万（給与所得178万）へ変更した際には、同じ金額だけ住民税の基礎控除、及び扶養控除の判定条件となる金額を増加させています。国民健康保険の所得割額が減りすぎる気がしますが、そこはそのままにしています。
             </li>
-            <li>「学生」が「はい」の場合は、特定扶養親族、「いいえ」の場合は一般扶養親族として、控除減少分を計算しています</li>
+            <li>社会保険の所得条件の撤廃と同時に人数要件の削除も検討されているようです。その場合、勤務先の規模は、実際の被保険者数に関わらず「51人以上」を選択してください。</li>
         </ul>
     </div>
 
@@ -454,7 +458,7 @@
         const calcSpoutDeduction = (totalIncome) => {
             if (totalIncome < 480000) {
                 return 380000;
-            } else if (totalIncome < 950000) {
+            } else if (totalIncome < 950000) { // TODO: 扶養者の合計所得1000万（給与で1600万ぐらい）より大きくなると、配偶者特別控除（ここより下）がなくなる
                 return 380000;
             } else if (totalIncome < 1000000) {
                 return 360000;
